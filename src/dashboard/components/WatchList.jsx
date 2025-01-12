@@ -8,12 +8,41 @@ import {
   MoreHoriz,
   SettingsOutlined,
 } from "@mui/icons-material";
-import React, { useContext, useState } from "react";
+import React, { useState, useCallback } from "react";
 import { watchlist } from "../../core/data";
-import GeneralContext from "../../store/general-context";
+import MainChart from "./MainChart";
+import { generateMockData } from "../../core/mockData";
 import classes from "../css/WatchList.module.css";
 
 const WatchList = () => {
+  const [activeChart, setActiveChart] = useState(null);
+
+  // Memoize the chart click handler to prevent unnecessary rerenders
+  const onChartClick = useCallback((stockSymbol) => {
+    try {
+      const stockData = generateMockData(stockSymbol, 30);
+      
+      // Ensure we're setting valid data
+      if (!stockData || !Array.isArray(stockData)) {
+        console.error('Invalid stock data generated');
+        return;
+      }
+
+      setActiveChart({
+        stockSymbol,
+        stockData,
+        chartType: "Candles",
+        showIndicators: true,
+      });
+    } catch (error) {
+      console.error('Error generating chart data:', error);
+    }
+  }, []);
+
+  const handleCloseChart = useCallback(() => {
+    setActiveChart(null);
+  }, []);
+
   return (
     <div className={classes.container}>
       <div className={classes["search-container"]}>
@@ -28,10 +57,34 @@ const WatchList = () => {
       </div>
 
       <ul className={classes["list"]}>
-        {watchlist.map((stock, index) => (
-          <WatchListItem stock={stock} key={index} />
+        {watchlist.map((stock) => (
+          <WatchListItem
+            stock={stock}
+            key={stock.name} // Using stock.name as key instead of index
+            onChartClick={onChartClick}
+          />
         ))}
       </ul>
+
+      {/* Improved chart rendering logic */}
+      {activeChart && activeChart.stockData && (
+        <div className={classes.chartContainer}>
+          <div className={classes.chartHeader}>
+            <h3>{activeChart.stockSymbol} Chart</h3>
+            <button onClick={handleCloseChart} className={classes.closeChart}>
+              Close
+            </button>
+          </div>
+          <div className={classes.chartWrapper}>
+            <MainChart
+              key={activeChart.stockSymbol} // Add key to force re-render on symbol change
+              stockData={activeChart.stockData}
+              chartType={activeChart.chartType}
+              showIndicators={activeChart.showIndicators}
+            />
+          </div>
+        </div>
+      )}
 
       <div className={classes["watchlist-number"]}>
         <ul>
@@ -39,7 +92,7 @@ const WatchList = () => {
             title="Companies"
             placement="top"
             arrow
-            aria-label="buy"
+            aria-label="companies"
             TransitionComponent={Grow}
           >
             <li>1</li>
@@ -48,7 +101,7 @@ const WatchList = () => {
             title="Bank"
             placement="top"
             arrow
-            aria-label="buy"
+            aria-label="bank"
             TransitionComponent={Grow}
           >
             <li>2</li>
@@ -57,7 +110,7 @@ const WatchList = () => {
             title="Indices"
             placement="top"
             arrow
-            aria-label="buy"
+            aria-label="indices"
             TransitionComponent={Grow}
           >
             <li>3</li>
@@ -66,7 +119,7 @@ const WatchList = () => {
             title="Hospitality"
             placement="top"
             arrow
-            aria-label="buy"
+            aria-label="hospitality"
             TransitionComponent={Grow}
           >
             <li>4</li>
@@ -75,7 +128,7 @@ const WatchList = () => {
             title="First Stocks"
             placement="top"
             arrow
-            aria-label="buy"
+            aria-label="stocks"
             TransitionComponent={Grow}
           >
             <li>5</li>
@@ -86,7 +139,7 @@ const WatchList = () => {
           title="Marketwatch settings"
           placement="left"
           arrow
-          aria-label="buy"
+          aria-label="settings"
           TransitionComponent={Grow}
         >
           <SettingsOutlined className={classes.settings} />
@@ -96,126 +149,82 @@ const WatchList = () => {
   );
 };
 
-export default WatchList;
-
-const WatchListItem = ({ stock }) => {
+const WatchListItem = React.memo(({ stock, onChartClick }) => {
   const [showWatchlistActions, setShowWatchlistActions] = useState(false);
 
-  const handleListMouseEnter = (e) => {
-    setShowWatchlistActions(true);
-  };
-
-  const handleListMouseLeave = (e) => {
-    setShowWatchlistActions(false);
-  };
+  const handleMouseEnter = () => setShowWatchlistActions(true);
+  const handleMouseLeave = () => setShowWatchlistActions(false);
 
   return (
-    <li onMouseEnter={handleListMouseEnter} onMouseLeave={handleListMouseLeave}>
+    <li onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <div className={classes.item}>
-        <p className={stock.isDown ? `${classes.down}` : `${classes.up}`}>
-          {" "}
-          {stock.name}{" "}
-        </p>
+        <p className={stock.isDown ? classes.down : classes.up}>{stock.name}</p>
         <div className={classes["item-info"]}>
-          <span className={classes.percent}> {stock.percent} </span>
+          <span className={classes.percent}>{stock.percent}</span>
           {stock.isDown ? (
             <KeyboardArrowDown className={classes.down} />
           ) : (
             <KeyboardArrowUp className={classes.up} />
           )}
-          <span className={classes.price}> {stock.price} </span>
+          <span className={classes.price}>{stock.price}</span>
         </div>
       </div>
-      {showWatchlistActions && <WatchListActions uid={stock.name} />}
+      {showWatchlistActions && (
+        <WatchListActions uid={stock.name} onChartClick={onChartClick} />
+      )}
     </li>
   );
-};
+});
 
-const WatchListActions = ({ uid }) => {
-  const generalContext = useContext(GeneralContext);
-
-  const handleBuyClick = () => {
-    generalContext.openBuyWindow(uid);
-  };
-
+const WatchListActions = React.memo(({ uid, onChartClick }) => {
   return (
     <span className={classes.actions}>
-      <span>
-        <Tooltip
-          title="Buy (B)"
-          placement="top"
-          arrow
-          aria-label="buy"
-          TransitionComponent={Grow}
+      <Tooltip title="Buy (B)" placement="top" arrow TransitionComponent={Grow}>
+        <button className={classes.buy}>B</button>
+      </Tooltip>
+      <Tooltip title="Sell (S)" placement="top" arrow TransitionComponent={Grow}>
+        <button className={classes.sell}>S</button>
+      </Tooltip>
+      <Tooltip
+        title="Market depth (D)"
+        placement="top"
+        arrow
+        TransitionComponent={Grow}
+      >
+        <button className={classes.action}>
+          <List className={classes.icon} />
+        </button>
+      </Tooltip>
+      <Tooltip title="Chart (C)" placement="top" arrow TransitionComponent={Grow}>
+        <button
+          className={classes.action}
+          onClick={() => onChartClick(uid)}
         >
-          <button className={classes.buy} onClick={handleBuyClick}>
-            B
-          </button>
-        </Tooltip>
-      </span>
-      <span>
-        <Tooltip
-          title="Sell (S)"
-          placement="top"
-          arrow
-          aria-label="sell"
-          TransitionComponent={Grow}
-        >
-          <button className={classes.sell}>S</button>
-        </Tooltip>
-      </span>
-      <span>
-        <Tooltip
-          title="Market depth (D)"
-          placement="top"
-          arrow
-          aria-label="depth"
-          TransitionComponent={Grow}
-        >
-          <button className={classes.action}>
-            <List className={classes.icon} />
-          </button>
-        </Tooltip>
-      </span>
-      <span>
-        <Tooltip
-          title="Chart (C)"
-          placement="top"
-          arrow
-          aria-label="chart"
-          TransitionComponent={Grow}
-        >
-          <button className={classes.action}>
-            <BarChartOutlined className={classes.icon} />
-          </button>
-        </Tooltip>
-      </span>
-      <span>
-        <Tooltip
-          title="Delete (del)"
-          placement="top"
-          arrow
-          aria-label="delete"
-          TransitionComponent={Grow}
-        >
-          <button className={classes.action}>
-            <DeleteOutline className={classes.icon} />
-          </button>
-        </Tooltip>
-      </span>
-      <span>
-        <Tooltip
-          title="More"
-          placement="top"
-          arrow
-          aria-label="more"
-          TransitionComponent={Grow}
-        >
-          <button className={classes.action}>
-            <MoreHoriz className={classes.icon} />
-          </button>
-        </Tooltip>
-      </span>
+          <BarChartOutlined className={classes.icon} />
+        </button>
+      </Tooltip>
+      <Tooltip
+        title="Delete (del)"
+        placement="top"
+        arrow
+        TransitionComponent={Grow}
+      >
+        <button className={classes.action}>
+          <DeleteOutline className={classes.icon} />
+        </button>
+      </Tooltip>
+      <Tooltip
+        title="More"
+        placement="top"
+        arrow
+        TransitionComponent={Grow}
+      >
+        <button className={classes.action}>
+          <MoreHoriz className={classes.icon} />
+        </button>
+      </Tooltip>
     </span>
   );
-};
+});
+
+export default WatchList;
