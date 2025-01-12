@@ -1,9 +1,32 @@
-import React, { Fragment } from "react";
-import { AccessTimeOutlined, PaymentOutlined } from "@mui/icons-material";
-
+import React, { Fragment, useState, useCallback } from "react";
+import { AccessTimeOutlined, PaymentOutlined, BarChartOutlined } from "@mui/icons-material";
+import MainChart from "./MainChart";
+import { generateMockData } from "../../core/mockData";
 import classes from "../css/Summary.module.css";
 
 const Summary = () => {
+  const [activeChart, setActiveChart] = useState(null);
+
+  const onChartClick = useCallback((stockSymbol) => {
+    try {
+      const stockData = generateMockData(stockSymbol, 30);
+      
+      if (!stockData || !Array.isArray(stockData)) {
+        console.error('Invalid stock data generated');
+        return;
+      }
+
+      setActiveChart({
+        stockSymbol,
+        stockData,
+        chartType: "Candles",
+        showIndicators: true,
+      });
+    } catch (error) {
+      console.error('Error generating chart data:', error);
+    }
+  }, []);
+
   return (
     <Fragment>
       <div className={classes.username}>
@@ -40,6 +63,13 @@ const Summary = () => {
         <span>
           <PaymentOutlined className={classes["section-icon"]} />
           <p>Holdings (13)</p>
+          <button 
+            className={classes.chartButton}
+            onClick={() => onChartClick('INFY')}
+          >
+            <BarChartOutlined className={classes.chartIcon} />
+            View Chart
+          </button>
         </span>
 
         <div className={classes.data}>
@@ -62,6 +92,29 @@ const Summary = () => {
         </div>
         <hr className={classes.divider} />
       </div>
+
+      {/* Chart Section */}
+      {activeChart && activeChart.stockData && (
+        <div className={classes.chartSection}>
+          <div className={classes.chartHeader}>
+            <h3>{activeChart.stockSymbol} Chart</h3>
+            <button 
+              onClick={() => setActiveChart(null)}
+              className={classes.closeButton}
+            >
+              Close
+            </button>
+          </div>
+          <div className={classes.chartWrapper}>
+            <MainChart
+              key={activeChart.stockSymbol}
+              stockData={activeChart.stockData}
+              chartType={activeChart.chartType}
+              showIndicators={activeChart.showIndicators}
+            />
+          </div>
+        </div>
+      )}
     </Fragment>
   );
 };
